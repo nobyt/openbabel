@@ -77,6 +77,7 @@ namespace OpenBabel
                "       only, avoid lengthy chemical interpretation by\n"
                "       using the ``T`` or ``P`` option together with the\n"
                "       :ref:`copy format <Copy_raw_text>`.\n\n"
+	       " t  read specified property as title\n"
 
                "Write Options, e.g. -x3\n"
                " 3  output V3000 not V2000 (used for >999 atoms/bonds) \n"
@@ -125,7 +126,7 @@ namespace OpenBabel
       bool ReadRGroupBlock(istream& ifs,OBMol& mol, OBConversion* pConv);
       bool ReadUnimplementedBlock(istream& ifs,OBMol& mol, OBConversion* pConv, string& blockname);
       bool WriteV3000(ostream& ofs,OBMol& mol, OBConversion* pConv);
-      bool ReadPropertyLines(istream& ifs, OBMol& mol);
+      bool ReadPropertyLines(istream& ifs, OBMol& mol, OBConversion* pConv);
       bool TestForAlias(const string& symbol, OBAtom* at, vector<pair<AliasData*,OBAtom*> >& aliases);
 
     private:
@@ -157,6 +158,7 @@ namespace OpenBabel
         OBConversion::RegisterFormat("mdl",this, "chemical/x-mdl-molfile");
         OBConversion::RegisterOptionParam("2", this);
         OBConversion::RegisterOptionParam("3", this);
+	OBConversion::RegisterOptionParam("t", this, 1, OBConversion::INOPTIONS);
       }
   };
 
@@ -252,7 +254,7 @@ namespace OpenBabel
       //Read Title and Property lines only
       ignore(ifs, "M  END");
       ifs.ignore(100,'\n');
-      ReadPropertyLines(ifs, mol);//also reads $$$$
+      ReadPropertyLines(ifs, mol, pConv);//also reads $$$$
       return true;
     }
 
@@ -638,7 +640,7 @@ namespace OpenBabel
     }
 
     //Get property lines
-    if(!ReadPropertyLines(ifs, mol)) {
+    if(!ReadPropertyLines(ifs, mol, pConv)) {
       //Has read the first line of the next reaction in RXN format
       pConv->AddOption("$RXNread");
       return true;
@@ -1544,9 +1546,10 @@ namespace OpenBabel
     return n;
   }
 
-  bool MDLFormat::ReadPropertyLines(istream& ifs, OBMol& mol)
+  bool MDLFormat::ReadPropertyLines(istream& ifs, OBMol& mol, OBConversion* pConv)
   {
     string line;
+    const char *titleField = pConv->IsOption("t",OBConversion::INOPTIONS);
     while (std::getline(ifs, line)) {
       if (line.substr(0, 4) == "$RXN")
         return false; //Has read the first line of the next reaction in RXN format
@@ -1574,7 +1577,9 @@ namespace OpenBabel
         dp->SetOrigin(fileformatInput);
         mol.SetData(dp);
 
-        if(!strcasecmp(attr.c_str(),"NAME") && *mol.GetTitle()=='\0')
+	if(titleField && !strcasecmp(attr.c_str(),titleField))
+	  mol.SetTitle(buff);
+	else if(!strcasecmp(attr.c_str(),"NAME") && *mol.GetTitle()=='\0')
           mol.SetTitle(buff);
       }
       if (line.substr(0, 4) ==  "$$$$")
